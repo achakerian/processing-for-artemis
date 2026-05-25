@@ -1,6 +1,10 @@
 // gallery.js — the gallery IS a p5 sketch.
 // Add a new sketch by adding an entry to `sketches` below (slug + title +
 // description + a drawPreview function). No data files, no CSS, no thumbnails.
+//
+// Responsive: every size derives from uiScale() so the same code looks right
+// from a phone to a 4K wall display. Cards grow up to MAX_CARD_W, then more
+// columns are added. Mouse and touch are both handled.
 
 const sketches = [
   {
@@ -11,8 +15,9 @@ const sketches = [
     drawPreview(g, w, h) {
       g.background(5, 6, 10);
       g.noStroke();
-      for (let i = 0; i < 140; i++) {
-        const r = g.random(0.4, 2.4);
+      const density = (w * h) / 18000;
+      for (let i = 0; i < density; i++) {
+        const r = g.random(0.4, 2.4) * (g.width / 280);
         const a = g.random(60, 230);
         g.fill(231, 236, 243, a);
         g.circle(g.random(w), g.random(h), r);
@@ -20,6 +25,64 @@ const sketches = [
     },
   },
 ];
+
+// --- Layout constants (in design pixels; multiply by uiScale at use) ---
+const BASE_CARD_W = 280;
+const MAX_CARD_W = 520;
+const CARD_ASPECT = 7 / 6;       // height / width
+const PADDING = 32;
+const GAP = 20;
+const HEADER_TOP = 76;
+const HEADER_GAP = 110;          // distance from top of canvas to first card row
+
+let cards = [];
+let layout = null;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  textFont("system-ui, -apple-system, sans-serif");
+  buildCards();
+}
+
+function uiScale() {
+  // Reference: a 1440x900 laptop. min() so portrait phones don't blow up,
+  // landscape ultrawides don't either.
+  return constrain(min(width, height) / 900, 0.75, 4.0);
+}
+
+function computeLayout() {
+  const s = uiScale();
+  const padding = PADDING * s;
+  const gap = GAP * s;
+  const maxCardW = MAX_CARD_W * s;
+  const available = width - padding * 2;
+
+  // How many MAX-sized cards fit? At least 1.
+  let cols = Math.max(1, Math.floor((available + gap) / (maxCardW + gap)));
+  // Card width = max-cap, unless even one card overflows (small screens).
+  let cardW = Math.min(maxCardW, available);
+  if (cols >= 2) cardW = maxCardW;
+  cardW = Math.max(BASE_CARD_W * 0.7 * s, cardW);
+
+  const cardH = cardW / CARD_ASPECT;
+  const gridW = cols * cardW + (cols - 1) * gap;
+  const offsetX = Math.floor((width - gridW) / 2);
+  const headerH = HEADER_GAP * s + 32 * s;
+
+  return { s, padding, gap, cardW, cardH, cols, offsetX, headerH };
+}
+
+function buildCards() {
+  layout = computeLayout();
+  cards = [];
+  for (let i = 0; i < sketches.length; i++) {
+    const col = i % layout.cols;
+    const row = Math.floor(i / layout.cols);
+    const x = layout.offsetX + col * (layout.cardW + layout.gap);
+    const y = layout.headerH + row * (layout.cardH + layout.gap);
+    cards.push(new Card(sketches[i], x, y, layout.cardW, layout.cardH));
+  }
+}
 
 class Card {
   constructor(sketch, x, y, w, h) {
@@ -29,9 +92,9 @@ class Card {
     this.w = w;
     this.h = h;
     this.thumbH = Math.floor(h * 0.62);
-    this.thumb = createGraphics(w, this.thumbH);
+    this.thumb = createGraphics(Math.floor(w), this.thumbH);
     this.thumb.randomSeed(sketch.seed);
-    sketch.drawPreview(this.thumb, w, this.thumbH);
+    sketch.drawPreview(this.thumb, Math.floor(w), this.thumbH);
     this.hovered = false;
   }
 
@@ -42,109 +105,100 @@ class Card {
     );
   }
 
-  draw() {
+  draw(s) {
     push();
     translate(this.x, this.y);
 
+    const radius = 10 * s;
+
     noStroke();
     fill(13, 16, 24);
-    rect(0, 0, this.w, this.h, 10);
+    rect(0, 0, this.w, this.h, radius);
 
     image(this.thumb, 0, 0);
 
     fill(231, 236, 243);
-    textSize(16);
+    textSize(18 * s);
     textStyle(BOLD);
-    text(this.sketch.title, 14, this.thumbH + 26);
+    text(this.sketch.title, 14 * s, this.thumbH + 28 * s);
 
     fill(138, 147, 166);
-    textSize(13);
+    textSize(14 * s);
     textStyle(NORMAL);
-    text(this.sketch.description, 14, this.thumbH + 48, this.w - 28);
+    text(
+      this.sketch.description,
+      14 * s,
+      this.thumbH + 52 * s,
+      this.w - 28 * s
+    );
 
     if (this.hovered) {
       noFill();
       stroke(108, 184, 255);
-      strokeWeight(1);
-      rect(0.5, 0.5, this.w - 1, this.h - 1, 10);
+      strokeWeight(1.5 * s);
+      rect(0.5, 0.5, this.w - 1, this.h - 1, radius);
     }
 
     pop();
   }
 }
 
-const PADDING = 32;
-const GAP = 20;
-const HEADER_H = 170;
-const CARD_W = 280;
-const CARD_H = 240;
-
-let cards = [];
-
-function setup() {
-  createCanvas(windowWidth, windowHeight);
-  textFont("system-ui, -apple-system, sans-serif");
-  buildCards();
-}
-
-function buildCards() {
-  cards = [];
-  const cols = Math.max(
-    1,
-    Math.floor((width - PADDING * 2 + GAP) / (CARD_W + GAP))
-  );
-  const gridW = cols * CARD_W + (cols - 1) * GAP;
-  const offsetX = Math.floor((width - gridW) / 2);
-
-  for (let i = 0; i < sketches.length; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = offsetX + col * (CARD_W + GAP);
-    const y = HEADER_H + row * (CARD_H + GAP);
-    cards.push(new Card(sketches[i], x, y, CARD_W, CARD_H));
-  }
-}
-
 function draw() {
   background(5, 6, 10);
-  drawHeader();
+  const s = layout.s;
+
+  drawHeader(s);
 
   let anyHover = false;
   for (const c of cards) {
     c.hovered = c.contains(mouseX, mouseY);
     if (c.hovered) anyHover = true;
-    c.draw();
+    c.draw(s);
   }
   cursor(anyHover ? "pointer" : "default");
 }
 
-function drawHeader() {
-  const leftX = cards.length > 0 ? cards[0].x : PADDING;
+function drawHeader(s) {
+  const leftX = cards.length > 0 ? cards[0].x : PADDING * s;
 
   noStroke();
   fill(231, 236, 243);
-  textSize(42);
+  textSize(44 * s);
   textStyle(BOLD);
-  text("Processing for Artemis", leftX, 76);
+  text("Processing for Artemis", leftX, HEADER_TOP * s);
 
   fill(138, 147, 166);
-  textSize(15);
+  textSize(16 * s);
   textStyle(NORMAL);
   text(
     "Interactive p5.js sketches built for astronomy open night — click a card to explore.",
     leftX,
-    108,
-    width - leftX - PADDING
+    (HEADER_TOP + 30) * s,
+    width - leftX - PADDING * s
   );
 }
 
-function mousePressed() {
+function navigateFromPointer(px, py) {
   for (const c of cards) {
-    if (c.contains(mouseX, mouseY)) {
+    if (c.contains(px, py)) {
       window.location.href = `sketches/${c.sketch.slug}/`;
-      return;
+      return true;
     }
   }
+  return false;
+}
+
+function mousePressed() {
+  navigateFromPointer(mouseX, mouseY);
+}
+
+function touchStarted() {
+  if (touches && touches.length > 0) {
+    navigateFromPointer(touches[0].x, touches[0].y);
+  } else {
+    navigateFromPointer(mouseX, mouseY);
+  }
+  return false; // prevent default scroll/zoom on touch
 }
 
 function windowResized() {
