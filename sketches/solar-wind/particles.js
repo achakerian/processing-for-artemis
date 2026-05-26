@@ -25,15 +25,25 @@ class Particle {
         this.alive = false;
         return;
       }
-      const sphereR = p.visualRadius * (3 + p.data.fieldStrength * 2.2);
+      // Interaction sphere grows with sqrt(fieldStrength), not linearly,
+      // so Jupiter's sphere stays sane instead of swallowing half the screen.
+      const sphereR = p.visualRadius * (2.5 + sqrt(p.data.fieldStrength) * 1.5);
       if (d < sphereR) {
+        const dnorm = 1 - d / sphereR;
+        // Perpendicular curve (deflection around the field) ...
         const perpX = -dy / d;
         const perpY = dx / d;
         const cross = this.vx * dy - this.vy * dx;
         const side = signOf(cross);
-        const strength = (1 - d / sphereR) * p.data.fieldStrength * 60 * dt;
-        this.vx += perpX * side * strength;
-        this.vy += perpY * side * strength;
+        const perpStrength = dnorm * p.data.fieldStrength * 40 * dt;
+        // ... plus a radial outward push so particles can't get trapped
+        // in a fake circular orbit. Without this, perpendicular force alone
+        // mimics centripetal force and particles loop forever.
+        const radialOutX = dx / d;
+        const radialOutY = dy / d;
+        const radialStrength = dnorm * p.data.fieldStrength * 28 * dt;
+        this.vx += perpX * side * perpStrength + radialOutX * radialStrength;
+        this.vy += perpY * side * perpStrength + radialOutY * radialStrength;
       }
     }
     this.x += this.vx * dt;
@@ -109,7 +119,9 @@ class ZoomParticle {
     const dx = this.x - this.earthX;
     const dy = this.y - this.earthY;
     const d = sqrt(dx * dx + dy * dy);
-    const fieldR = this.earthR * 5;
+    // Match the outermost visible dipole field line so particles deflect
+    // *around* the field, not through it.
+    const fieldR = this.earthR * 7;
 
     if (d < this.earthR * 1.05) {
       this.alive = false;
@@ -117,22 +129,35 @@ class ZoomParticle {
     }
 
     if (d < fieldR) {
-      // small chance per frame to be captured onto a field line
-      if (d < this.earthR * 3 && random() < 0.04) {
+      // Capture only happens in the polar cusp region — the openings near
+      // the magnetic poles where field lines connect to interplanetary
+      // space. Particles arriving on the equatorial dayside get deflected
+      // away; only those threading near the cusps funnel down to aurora.
+      const angle = atan2(dy, dx);
+      const absAngle = abs(angle);
+      const inPolarCusp = absAngle > PI / 3 && absAngle < (2 * PI) / 3;
+      if (inPolarCusp && d < this.earthR * 2.8 && random() < 0.018) {
         this.captured = true;
         this.poleTarget = dy < 0
-          ? { x: this.earthX + random(-this.earthR * 0.15, this.earthR * 0.15), y: this.earthY - this.earthR }
-          : { x: this.earthX + random(-this.earthR * 0.15, this.earthR * 0.15), y: this.earthY + this.earthR };
+          ? { x: this.earthX + random(-this.earthR * 0.12, this.earthR * 0.12), y: this.earthY - this.earthR * 0.95 }
+          : { x: this.earthX + random(-this.earthR * 0.12, this.earthR * 0.12), y: this.earthY + this.earthR * 0.95 };
         return;
       }
-      // perpendicular deflection — push the particle around the field
+      // Deflection: perpendicular curve + radial outward push, both with
+      // quadratic falloff. Strong enough to keep particles outside the
+      // visible field-line envelope.
+      const dnorm = 1 - d / fieldR;
+      const fall = dnorm * dnorm;
       const perpX = -dy / d;
       const perpY = dx / d;
       const cross = this.vx * dy - this.vy * dx;
       const side = signOf(cross);
-      const strength = (1 - d / fieldR) * 240 * dt;
-      this.vx += perpX * side * strength;
-      this.vy += perpY * side * strength;
+      const radialOutX = dx / d;
+      const radialOutY = dy / d;
+      const perpStrength = fall * 1500 * dt;
+      const radialStrength = fall * 600 * dt;
+      this.vx += perpX * side * perpStrength + radialOutX * radialStrength;
+      this.vy += perpY * side * perpStrength + radialOutY * radialStrength;
     }
 
     this.x += this.vx * dt;
@@ -153,38 +178,67 @@ class ZoomParticle {
   }
 }
 
+// AuroraRibbon — a vertical "curtain" column in the aurora borealis idiom:
+// green base (oxygen 557.7nm at low altitude), shading up through
+// yellow-green and red (oxygen 630nm + nitrogen) into violet at the tip,
+// with a subtle horizontal wobble that drifts over the column's lifetime.
 class AuroraRibbon {
   constructor(x, y, isNorth) {
-    this.segments = [];
-    const dir = isNorth ? -1 : 1;
-    const s = uiScale();
-    let cx = x;
-    let cy = y;
-    for (let i = 0; i < 10; i++) {
-      this.segments.push({ x: cx, y: cy });
-      cx += random(-5, 5) * s;
-      cy += dir * (4 + random(0, 6)) * s;
-    }
+    this.x = x;
+    this.y = y;
+    this.isNorth = isNorth;
     this.life = 1.0;
+    this.maxLife = random(1.6, 2.4);
+    this.baseWidth = random(4, 9) * uiScale();
+    this.height = random(80, 170) * uiScale();
+    this.wobbleSeed = random(1000);
+    this.wobbleAmp = random(0.4, 1.1);
   }
   update(dt) {
-    this.life -= dt * 0.85;
+    this.life -= dt / this.maxLife;
   }
   draw() {
-    const alpha = constrain(this.life, 0, 1) * 220;
-    strokeWeight(2.8 * uiScale());
-    noFill();
-    for (let i = 0; i < this.segments.length - 1; i++) {
-      const t = i / (this.segments.length - 1);
-      stroke(
-        lerp(70, 180, t),
-        lerp(255, 90, t),
-        lerp(140, 230, t),
-        alpha
-      );
-      const a = this.segments[i];
-      const b = this.segments[i + 1];
-      line(a.x, a.y, b.x, b.y);
+    if (this.life <= 0) return;
+    const dir = this.isNorth ? -1 : 1;
+    const lifeT = constrain(this.life, 0, 1);
+    // Soft envelope: fades in fast, lingers, fades out
+    const envelope = lifeT < 0.9 ? lifeT / 0.9 : 1;
+    const phase = (1 - this.life) * 3;
+
+    noStroke();
+    const SEGMENTS = 18;
+    const segH = this.height / SEGMENTS;
+    for (let i = 0; i < SEGMENTS; i++) {
+      const t = i / (SEGMENTS - 1);
+      const yPos = this.y + dir * this.height * t;
+      const wobble =
+        (noise(this.wobbleSeed + t * 2.5 + phase) - 0.5) *
+        this.baseWidth * 2.5 * this.wobbleAmp;
+      const xPos = this.x + wobble;
+
+      let cr, cg, cb;
+      if (t < 0.45) {
+        const tt = t / 0.45;
+        cr = lerp(60, 130, tt);
+        cg = lerp(255, 230, tt);
+        cb = lerp(120, 90, tt);
+      } else if (t < 0.78) {
+        const tt = (t - 0.45) / 0.33;
+        cr = lerp(130, 210, tt);
+        cg = lerp(230, 110, tt);
+        cb = lerp(90, 110, tt);
+      } else {
+        const tt = (t - 0.78) / 0.22;
+        cr = lerp(210, 170, tt);
+        cg = lerp(110, 50, tt);
+        cb = lerp(110, 200, tt);
+      }
+
+      const segAlpha = envelope * pow(1 - t * 0.85, 1.2) * 230;
+      const w = this.baseWidth * (1 + t * 0.3);
+
+      fill(cr, cg, cb, segAlpha);
+      ellipse(xPos, yPos, w * 1.7, segH * 2);
     }
   }
   isDead() {
