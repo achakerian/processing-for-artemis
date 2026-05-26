@@ -35,8 +35,12 @@ const GAP = 20;
 const HEADER_TOP = 76;
 const HEADER_GAP = 110;          // distance from top of canvas to first card row
 
+const REPO_URL = "https://github.com/achakerian/processing-for-artemis";
+const REPO_LABEL = "github.com/achakerian/processing-for-artemis";
+
 let cards = [];
 let layout = null;
+let repoLinkBounds = null;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -155,7 +159,7 @@ function draw() {
     if (c.hovered) anyHover = true;
     c.draw(s);
   }
-  cursor(anyHover ? "pointer" : "default");
+  cursor(anyHover || pointerInRepoLink(mouseX, mouseY) ? "pointer" : "default");
 }
 
 function drawHeader(s) {
@@ -167,18 +171,40 @@ function drawHeader(s) {
   textStyle(BOLD);
   text("Processing for Artemis", leftX, HEADER_TOP * s);
 
-  fill(138, 147, 166);
   textSize(16 * s);
   textStyle(NORMAL);
-  text(
-    "Interactive p5.js sketches built for astronomy open night — click a card to explore.",
-    leftX,
-    (HEADER_TOP + 30) * s,
-    width - leftX - PADDING * s
-  );
+  const linkY = (HEADER_TOP + 26) * s;
+  const linkW = textWidth(REPO_LABEL);
+  const padX = 6 * s;
+  const padY = 4 * s;
+  repoLinkBounds = {
+    x: leftX - padX,
+    y: linkY - 16 * s,
+    w: linkW + padX * 2,
+    h: 24 * s + padY,
+  };
+  const hovered = pointerInRepoLink(mouseX, mouseY);
+  fill(108, 184, 255, hovered ? 255 : 200);
+  text(REPO_LABEL, leftX, linkY);
+  if (hovered) {
+    stroke(108, 184, 255, 200);
+    strokeWeight(1 * s);
+    line(leftX, linkY + 3 * s, leftX + linkW, linkY + 3 * s);
+    noStroke();
+  }
+}
+
+function pointerInRepoLink(px, py) {
+  if (!repoLinkBounds) return false;
+  const b = repoLinkBounds;
+  return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
 }
 
 function navigateFromPointer(px, py) {
+  if (pointerInRepoLink(px, py)) {
+    window.open(REPO_URL, "_blank", "noopener");
+    return true;
+  }
   for (const c of cards) {
     if (c.contains(px, py)) {
       window.location.href = `sketches/${c.sketch.slug}/`;
