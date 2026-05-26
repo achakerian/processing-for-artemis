@@ -21,10 +21,7 @@ When adding a sketch, route every magic number through `uiScale()` so the new sk
 
 ## Sketches
 
-| Sketch | Description |
-| --- | --- |
-| [`starfield`](sketches/starfield/) | Drifting stars that lean toward your cursor. |
-| [`solar-wind`](sketches/solar-wind/) | Tap the sun to fire a flare; tap a planet to zoom in. Earth's magnetosphere is fully simulated in Phase 1; other planets show a teaser stub. |
+_No sketches yet — this is the template state. Add one to the `sketches` array in `gallery.js` and create `sketches/<slug>/` alongside this folder._
 
 ## How the pipeline works
 

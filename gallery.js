@@ -6,336 +6,8 @@
 // from a phone to a 4K wall display. Cards grow up to MAX_CARD_W, then more
 // columns are added. Mouse and touch are both handled.
 
-const sketches = [
-  {
-    slug: "starfield",
-    title: "Starfield",
-    description: "Drifting stars that lean toward your cursor.",
-    seed: 1,
-    drawPreview(g, w, h) {
-      g.background(5, 6, 10);
-      g.noStroke();
-      const density = (w * h) / 18000;
-      for (let i = 0; i < density; i++) {
-        const r = g.random(0.4, 2.4) * (g.width / 280);
-        const a = g.random(60, 230);
-        g.fill(231, 236, 243, a);
-        g.circle(g.random(w), g.random(h), r);
-      }
-    },
-  },
-  {
-    slug: "magnetosphere",
-    title: "Magnetosphere",
-    description: "Earth's magnetic shield, alive — solar wind, substorms, the auroral oval.",
-    seed: 13,
-    drawPreview(g, w, h) {
-      g.background(4, 5, 9);
-      g.noStroke();
-      const k = w / 280;
-
-      const starCount = (w * h) / 14000;
-      for (let i = 0; i < starCount; i++) {
-        g.fill(231, 236, 243, g.random(40, 180));
-        g.circle(g.random(w), g.random(h), g.random(0.4, 1.6) * k);
-      }
-
-      // wind streaks from the left
-      g.stroke(255, 225, 170, 65);
-      g.strokeWeight(0.7 * k);
-      for (let i = 0; i < 14; i++) {
-        const sy = g.random(h);
-        const sx = g.random(0, w * 0.45);
-        g.line(sx, sy, sx + 18 * k, sy);
-      }
-
-      const ex = w * 0.36;
-      const ey = h * 0.56;
-      const er = 18 * k;
-
-      // magnetosheath (warm shell between bow shock and magnetopause)
-      const N = 60;
-      const outer = [];
-      const inner = [];
-      for (let i = 0; i <= N; i++) {
-        const a = (i / N) * Math.PI * 2;
-        const c = Math.cos(a);
-        const t = (c + 1) / 2;
-        const mp = er * (2.5 + (6.5 - 2.5) * t);
-        const bs = er * (3.4 + (8.5 - 3.4) * t);
-        outer.push([ex + Math.cos(a) * bs, ey + Math.sin(a) * bs]);
-        inner.push([ex + Math.cos(a) * mp, ey + Math.sin(a) * mp]);
-      }
-      const passes = [
-        [255, 110, 90, 55],
-        [255, 160, 110, 35],
-        [255, 200, 150, 22],
-      ];
-      for (const p of passes) {
-        g.fill(p[0], p[1], p[2], p[3]);
-        g.noStroke();
-        g.beginShape();
-        for (const pt of outer) g.vertex(pt[0], pt[1]);
-        g.beginContour();
-        for (let i = inner.length - 1; i >= 0; i--) g.vertex(inner[i][0], inner[i][1]);
-        g.endContour();
-        g.endShape(g.CLOSE);
-      }
-
-      g.noFill();
-      g.stroke(170, 225, 255, 110);
-      g.strokeWeight(1 * k);
-      g.beginShape();
-      for (const pt of outer) g.vertex(pt[0], pt[1]);
-      g.endShape(g.CLOSE);
-
-      // plasma sheet down the tail
-      g.stroke(220, 150, 255, 160);
-      g.strokeWeight(1.4 * k);
-      g.line(ex + er * 1.6, ey, w + 5, ey);
-
-      // closed dipole field lines
-      g.stroke(140, 215, 255, 130);
-      g.strokeWeight(0.9 * k);
-      for (const L of [1.5, 2.0, 2.7]) {
-        for (const side of [-1, 1]) {
-          const xScale = side === -1 ? 0.85 : 1.6;
-          g.noFill();
-          g.beginShape();
-          for (let lam = -Math.PI / 2 + 0.05; lam <= Math.PI / 2 - 0.05; lam += 0.06) {
-            const r = L * Math.cos(lam) * Math.cos(lam);
-            const dx = side * r * Math.cos(lam) * xScale * er;
-            const dy = -r * Math.sin(lam) * er;
-            g.vertex(ex + dx, ey + dy);
-          }
-          g.endShape();
-        }
-      }
-
-      // open polar field lines into the tail (both lobes)
-      g.stroke(150, 200, 255, 130);
-      g.strokeWeight(1 * k);
-      for (const sgn of [-1, 1]) {
-        for (let i = 0; i < 2; i++) {
-          const tailLen = (4.5 + i * 2) * er;
-          const sx = ex - Math.cos(1.4) * er * 1.02;
-          const sy = ey + sgn * Math.sin(1.4) * er * 1.02;
-          const c1x = ex + er * 0.6, c1y = ey + sgn * er * 1.6;
-          const c2x = ex + er * 2.2, c2y = ey + sgn * er * 0.9;
-          const exX = ex + tailLen, exY = ey + sgn * er * 0.4;
-          g.noFill();
-          g.beginShape();
-          for (let u = 0; u <= 1.001; u += 0.05) {
-            const um = 1 - u;
-            const px = um*um*um*sx + 3*um*um*u*c1x + 3*um*u*u*c2x + u*u*u*exX;
-            const py = um*um*um*sy + 3*um*um*u*c1y + 3*um*u*u*c2y + u*u*u*exY;
-            g.vertex(px, py);
-          }
-          g.endShape();
-        }
-      }
-
-      // aurora ovals at both poles (green→red→violet)
-      const ovalLayers = [
-        [120, 255, 150, 230, 4.5],
-        [255, 110, 130, 130, 2.8],
-        [180, 100, 255, 80,  2.2],
-      ];
-      for (const sgn of [-1, 1]) {
-        for (const L of ovalLayers) {
-          g.noFill();
-          g.stroke(L[0], L[1], L[2], L[3]);
-          g.strokeWeight(L[4] * k * 0.6);
-          g.arc(ex, ey + sgn * er * 0.78, er * 1.15, er * 0.35,
-                sgn > 0 ? Math.PI : 0, sgn > 0 ? Math.PI * 2 : Math.PI);
-        }
-      }
-
-      // atmosphere limb
-      g.noFill();
-      for (let i = 0; i < 5; i++) {
-        g.stroke(80, 160, 230, 60 - i * 10);
-        g.strokeWeight(1 + i * 0.6);
-        g.circle(ex, ey, er * 2 + i * 3 * k);
-      }
-
-      // earth: night base, lit left hemisphere
-      g.noStroke();
-      g.fill(10, 18, 38);
-      g.circle(ex, ey, er * 2);
-      g.fill(78, 135, 195, 250);
-      g.arc(ex, ey, er * 2 * 0.96, er * 2 * 0.96, Math.PI / 2, Math.PI / 2 + Math.PI);
-      g.fill(72, 158, 118, 220);
-      g.push();
-      g.translate(ex, ey);
-      g.rotate(0.32);
-      g.ellipse(-er * 0.55, -er * 0.15, er * 0.65, er * 0.38);
-      g.ellipse(-er * 0.3, er * 0.32, er * 0.5, er * 0.35);
-      g.pop();
-      // night-side city lights
-      g.fill(255, 210, 140, 200);
-      for (let i = 0; i < 8; i++) {
-        const ang = i * 0.87 + 0.4;
-        const rad = er * (0.4 + (i * 0.13) % 0.45);
-        const x = ex + Math.cos(ang) * rad;
-        const y = ey + Math.sin(ang) * rad;
-        if (x - ex > er * 0.05) g.circle(x, y, 1.2 * k);
-      }
-    },
-  },
-  {
-    slug: "asteroid-impact",
-    title: "Asteroid Impact Probability",
-    description: "Fling an asteroid through a log-scaled solar system. Track its odds of hitting Earth in 50 cycles.",
-    seed: 23,
-    drawPreview(g, w, h) {
-      g.background(5, 6, 10);
-      g.noStroke();
-      const cx = w / 2;
-      const cy = h / 2;
-      const k = w / 280;
-
-      // sun
-      for (let i = 4; i > 0; i--) {
-        g.fill(255, 180, 90, 22 / i);
-        g.circle(cx, cy, 14 * k * (1 + i * 0.35));
-      }
-      g.fill(255, 210, 90);
-      g.circle(cx, cy, 12 * k);
-      g.fill(255, 240, 200);
-      g.circle(cx, cy, 9 * k);
-
-      // log-spaced orbits + planets
-      const radii = [20, 30, 42, 54, 76, 94, 114, 132];
-      const sizes = [2.0, 3.0, 3.2, 2.5, 6.4, 5.6, 4.2, 4.2];
-      const cols = [
-        [180, 175, 170], [220, 190, 130], [80, 140, 200], [200, 110, 80],
-        [220, 190, 150], [220, 200, 160], [170, 220, 230], [80, 110, 220],
-      ];
-      g.noFill();
-      g.stroke(120, 170, 220, 35);
-      g.strokeWeight(1);
-      for (let i = 0; i < radii.length; i++) {
-        g.circle(cx, cy, radii[i] * k * 2);
-      }
-      g.noStroke();
-      const angles = [];
-      for (let i = 0; i < radii.length; i++) {
-        const a = g.random(0, Math.PI * 2);
-        angles.push(a);
-        const r = radii[i] * k;
-        const sz = sizes[i] * k;
-        const px = cx + Math.cos(a) * r;
-        const py = cy + Math.sin(a) * r;
-        g.fill(cols[i][0], cols[i][1], cols[i][2]);
-        g.circle(px, py, sz);
-      }
-
-      // Halley-like comet path (faint tilted ellipse)
-      g.noFill();
-      g.stroke(200, 150, 220, 55);
-      g.strokeWeight(1);
-      g.push();
-      g.translate(cx, cy);
-      g.rotate(-0.4);
-      const cometA = 75 * k;
-      const cometB = 30 * k;
-      g.ellipse(-cometA * 0.45, 0, cometA * 2, cometB * 2);
-      g.pop();
-
-      // asteroid curving in toward Earth (3rd orbit)
-      const earthR = radii[2] * k;
-      const earthAngle = angles[2];
-      const ex = cx + Math.cos(earthAngle) * earthR;
-      const ey = cy + Math.sin(earthAngle) * earthR;
-      const startX = w - 18 * k;
-      const startY = 18 * k;
-      const ctrl1X = cx + 90 * k;
-      const ctrl1Y = cy - 30 * k;
-      const ctrl2X = ex + 50 * k;
-      const ctrl2Y = ey - 28 * k;
-
-      // glow trail
-      for (let i = 6; i > 0; i--) {
-        g.stroke(255, 170, 110, 12 * i);
-        g.strokeWeight(0.5 * k * i);
-        g.noFill();
-        g.bezier(startX, startY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, ex, ey);
-      }
-      g.stroke(255, 220, 170, 220);
-      g.strokeWeight(1.4 * k);
-      g.noFill();
-      g.bezier(startX, startY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, ex, ey);
-
-      // asteroid head
-      g.noStroke();
-      g.fill(255, 220, 180);
-      g.circle(startX, startY, 3 * k);
-
-      // impact halo on Earth
-      g.noFill();
-      g.stroke(120, 220, 160, 220);
-      g.strokeWeight(1.2 * k);
-      g.circle(ex, ey, sizes[2] * k * 2.6);
-    },
-  },
-  {
-    slug: "solar-wind",
-    title: "Solar Wind",
-    description: "Tap the sun. Tap a planet. Watch space weather happen.",
-    seed: 7,
-    drawPreview(g, w, h) {
-      g.background(5, 6, 10);
-      g.noStroke();
-      const cx = w / 2;
-      const cy = h / 2;
-      const k = w / 280;
-
-      // sun corona
-      for (let i = 4; i > 0; i--) {
-        g.fill(255, 180, 90, 22 / i);
-        g.circle(cx, cy, 18 * k * (1 + i * 0.35));
-      }
-      g.fill(255, 210, 90);
-      g.circle(cx, cy, 16 * k);
-      g.fill(255, 240, 200);
-      g.circle(cx, cy, 12 * k);
-
-      // orbit rings + planets (compressed log scale)
-      const radii = [22, 32, 44, 58, 80, 100, 122, 142];
-      const sizes = [2.2, 3.3, 3.4, 2.7, 7, 6, 4.5, 4.5];
-      const cols = [
-        [180, 175, 170], [220, 190, 130], [80, 140, 200], [200, 110, 80],
-        [220, 190, 150], [220, 200, 160], [170, 220, 230], [80, 110, 220],
-      ];
-
-      g.noFill();
-      g.stroke(120, 170, 220, 45);
-      g.strokeWeight(1);
-      for (let i = 0; i < radii.length; i++) {
-        g.circle(cx, cy, radii[i] * k * 2);
-      }
-
-      g.noStroke();
-      for (let i = 0; i < radii.length; i++) {
-        const r = radii[i] * k;
-        const sz = sizes[i] * k;
-        const angle = g.random(0, Math.PI * 2);
-        const px = cx + Math.cos(angle) * r;
-        const py = cy + Math.sin(angle) * r;
-        g.fill(cols[i][0], cols[i][1], cols[i][2]);
-        g.circle(px, py, sz);
-        if (i === 5) {
-          g.noFill();
-          g.stroke(220, 200, 160, 200);
-          g.strokeWeight(0.8);
-          g.ellipse(px, py, sz * 2.5, sz * 0.8);
-          g.noStroke();
-        }
-      }
-    },
-  },
-];
+// Sketches live here. Add an entry below and create sketches/<slug>/index.html + sketch.js alongside this folder.
+const sketches = [];
 
 // --- Layout constants (in design pixels; multiply by uiScale at use) ---
 const BASE_CARD_W = 280;
@@ -617,11 +289,31 @@ function draw() {
     if (c.hovered) anyHover = true;
     c.draw(s);
   }
+  if (cards.length === 0) drawEmptyState(s);
   pop();
 
   if (maxScroll > 0) drawScrollIndicator(s);
 
   cursor(anyHover || pointerInRepoLink(mouseX, worldMouseY) ? "pointer" : "default");
+}
+
+function drawEmptyState(s) {
+  const cx = width / 2;
+  const cy = layout.headerH + (height - layout.headerH) / 2 - 24 * s;
+  noStroke();
+  textAlign(CENTER, CENTER);
+  fill(231, 236, 243, 220);
+  textStyle(BOLD);
+  textSize(22 * s);
+  text("No sketches yet.", cx, cy);
+  textStyle(NORMAL);
+  fill(138, 147, 166, 220);
+  textSize(14 * s);
+  text(
+    "Add an entry to the sketches array in gallery.js, then create sketches/<slug>/ alongside this folder.",
+    cx, cy + 40 * s, min(width * 0.7, 560 * s)
+  );
+  textAlign(LEFT, BASELINE);
 }
 
 function drawScrollIndicator(s) {
