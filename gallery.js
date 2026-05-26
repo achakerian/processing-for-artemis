@@ -25,6 +25,112 @@ const sketches = [
     },
   },
   {
+    slug: "magnetosphere",
+    title: "Magnetosphere",
+    description: "Solar flares meet Earth's magnetic shield — bounce or aurora.",
+    seed: 13,
+    drawPreview(g, w, h) {
+      g.background(5, 6, 10);
+      g.noStroke();
+      const k = w / 280;
+
+      // starfield
+      const starCount = (w * h) / 14000;
+      for (let i = 0; i < starCount; i++) {
+        g.fill(231, 236, 243, g.random(50, 180));
+        g.circle(g.random(w), g.random(h), g.random(0.4, 1.6) * k);
+      }
+
+      // sun (left)
+      const sx = w * 0.18;
+      const sy = h * 0.5;
+      const sr = 12 * k;
+      for (let i = 4; i > 0; i--) {
+        g.fill(255, 180, 90, 22 / i);
+        g.circle(sx, sy, sr * 2 * (1 + i * 0.32));
+      }
+      g.fill(255, 210, 90);
+      g.circle(sx, sy, sr * 2);
+      g.fill(255, 240, 200);
+      g.circle(sx, sy, sr * 1.4);
+
+      // earth (right)
+      const ex = w * 0.78;
+      const ey = h * 0.5;
+      const er = sr / 3;
+      // asymmetric magnetopause (teardrop)
+      g.noFill();
+      g.stroke(140, 210, 255, 45);
+      g.strokeWeight(1 * k);
+      g.beginShape();
+      for (let a = 0; a < Math.PI * 2 + 0.01; a += 0.06) {
+        const c = Math.cos(a);
+        const t = (c + 1) / 2;
+        const R = er * (2.6 + (5.5 - 2.6) * t);
+        g.vertex(ex + Math.cos(a) * R, ey + Math.sin(a) * R);
+      }
+      g.endShape();
+
+      // dipole field lines (asymmetric)
+      const Lvals = [1.3, 1.8, 2.4, 3.0];
+      g.stroke(140, 215, 255, 110);
+      g.strokeWeight(1 * k);
+      for (const L of Lvals) {
+        for (const side of [-1, 1]) {
+          g.beginShape();
+          for (let theta = 0.08; theta < Math.PI - 0.08; theta += 0.05) {
+            const rr = er * L * Math.sin(theta) * Math.sin(theta);
+            let dx = side * rr * Math.sin(theta);
+            const dy = -rr * Math.cos(theta);
+            const dxR = dx / er;
+            dx *= dxR < 0 ? 0.7 : 1 + 1.1 * (1 - Math.exp(-dxR / 2.8));
+            g.vertex(ex + dx, ey + dy);
+          }
+          g.endShape();
+        }
+      }
+
+      // flare streak from sun toward earth + a few energised particles at the pole
+      g.stroke(255, 200, 120, 130);
+      g.strokeWeight(0.8 * k);
+      for (let i = 0; i < 12; i++) {
+        const t = g.random(0.15, 0.65);
+        const px = sx + (ex - sx) * t + g.random(-4, 4) * k;
+        const py = sy + g.random(-er * 1.8, er * 1.8);
+        g.line(px - 4 * k, py, px + 4 * k, py);
+      }
+      g.noStroke();
+      g.fill(255, 230, 150, 220);
+      for (let i = 0; i < 8; i++) {
+        g.circle(
+          sx + (ex - sx) * g.random(0.2, 0.6),
+          sy + g.random(-er * 1.5, er * 1.5),
+          1.5 * k
+        );
+      }
+
+      // aurora glow at north pole of earth
+      g.noFill();
+      for (let i = 0; i < 3; i++) {
+        g.stroke(120, 255 - i * 25, 180, 150 - i * 35);
+        g.strokeWeight((3 + i * 1.5) * k);
+        const aw = er * (1.0 + i * 0.2);
+        const ah = er * (0.45 + i * 0.12);
+        g.arc(ex, ey - er * 0.85, aw, ah, 0, Math.PI);
+      }
+
+      // earth body on top
+      g.noStroke();
+      g.fill(45, 80, 140);
+      g.circle(ex, ey, er * 2);
+      g.fill(78, 135, 195);
+      g.circle(ex, ey, er * 1.92);
+      g.fill(70, 160, 120, 200);
+      g.ellipse(ex - er * 0.25, ey - er * 0.1, er * 0.85, er * 0.5);
+      g.ellipse(ex + er * 0.2, ey + er * 0.25, er * 0.6, er * 0.45);
+    },
+  },
+  {
     slug: "solar-wind",
     title: "Solar Wind",
     description: "Tap the sun. Tap a planet. Watch space weather happen.",
