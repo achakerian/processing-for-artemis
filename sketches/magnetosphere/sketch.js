@@ -17,10 +17,14 @@
 
 const AUTO_FLARE_INTERVAL = 9.0;
 const INITIAL_CALM = 4.0;
+const TAP_COOLDOWN = 0.35;       // seconds between manual flares
+const MAX_LIVE_PARTICLES = 700;  // global cap across all flares
 
 const ENERGIZE_BASE = 0.08;
 const ENERGIZE_POLE = 0.70;
 const ENERGIZE_FADE = 1.4;
+
+let lastFireMs = -1e9;
 
 let sunPos, earthPos;
 let sunR, earthR;
@@ -370,14 +374,10 @@ class Particle {
       fill(160, 230, 255, a * 80);
       circle(this.x, this.y, 7 * s);
     } else {
-      stroke(255, 200, 120, 35);
-      strokeWeight(1.2 * s);
+      // cheap streak — one draw call per particle keeps spam-tapping safe
+      stroke(255, 215, 130, 130);
+      strokeWeight(1.4 * s);
       line(this.trailX, this.trailY, this.x, this.y);
-      noStroke();
-      fill(255, 230, 150, 110);
-      circle(this.x, this.y, 1.7 * s);
-      fill(255, 180, 90, 45);
-      circle(this.x, this.y, 4 * s);
     }
   }
   isOffscreen() {
@@ -405,7 +405,7 @@ class Flare {
     this.particles = [];
     this.dead = false;
     const speed = max(220, min(width, height) * 0.30);
-    const count = constrain(floor(min(width, height) * 0.55), 180, 900);
+    const count = constrain(floor(min(width, height) * 0.28), 110, 360);
     const aimAng = atan2(earthPos.y - originY, earthPos.x - originX);
     const spread = 0.45;     // ±26° cone
     for (let i = 0; i < count; i++) {
@@ -429,7 +429,14 @@ class Flare {
   }
 }
 
+function liveParticleCount() {
+  let n = 0;
+  for (const f of flares) n += f.particles.length;
+  return n;
+}
+
 function fireFlare() {
+  if (liveParticleCount() >= MAX_LIVE_PARTICLES) return;
   flares.push(new Flare(sunPos.x, sunPos.y, sunR));
 }
 
@@ -469,6 +476,9 @@ function handleTap(px, py) {
     return;
   }
   if (pointInSunHotspot(px, py)) {
+    const now = millis();
+    if (now - lastFireMs < TAP_COOLDOWN * 1000) return;
+    lastFireMs = now;
     fireFlare();
     flareTimer = AUTO_FLARE_INTERVAL;
     sunHintFade = max(0, sunHintFade - 0.5);
