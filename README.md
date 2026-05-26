@@ -8,6 +8,17 @@ A growing collection of interactive [p5.js](https://p5js.org/) sketches designed
 
 Everything in this project — including the gallery itself — is built from the primitives Processing teaches: **variables, conditionals, loops, arrays, functions, classes, and event handlers**. No CSS files, no JSON data files, no image assets. Each sketch and the gallery that hosts them are generative all the way down.
 
+## Built for any screen
+
+Sketches are designed to look right on a phone, a laptop, **and a 4K wall display** — useful since the gallery is meant to be projected or shown on a TV at the open night.
+
+- Every size (text, cards, padding, hit zones, even star counts) derives from a single `uiScale()` helper: `constrain(min(width, height) / 900, 0.75, 4.0)`. One multiplier, everything follows.
+- The gallery uses **hybrid card sizing** — cards grow up to a 520px design-width cap, then more columns are added. On 4K you get a few huge readable cards; on a laptop, a normal grid; on a phone, one full-width card.
+- **Touch + mouse are treated the same.** Each sketch implements `mousePressed` and `touchStarted`, so the same code works on a touchscreen kiosk and a regular monitor. Back-link hit zones are at least 44pt × `uiScale` for finger targets.
+- Star counts and similar density-based parameters scale with screen area (clamped) so a 4K display gets richer visuals without melting the GPU.
+
+When adding a sketch, route every magic number through `uiScale()` so the new sketch inherits this behavior automatically.
+
 ## Sketches
 
 | Sketch | Description |
