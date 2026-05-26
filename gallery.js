@@ -138,7 +138,7 @@ class Card {
 
     if (this.hovered) {
       noFill();
-      stroke(108, 184, 255);
+      stroke(NASA_BLUE[0], NASA_BLUE[1], NASA_BLUE[2]);
       strokeWeight(1.5 * s);
       rect(0.5, 0.5, this.w - 1, this.h - 1, radius);
     }
@@ -162,34 +162,67 @@ function draw() {
   cursor(anyHover || pointerInRepoLink(mouseX, mouseY) ? "pointer" : "default");
 }
 
+// NASA-inspired palette
+const NASA_BLUE = [77, 134, 255];   // bright "insignia blue" tuned for dark bg
+const NASA_RED  = [252, 61, 33];    // NASA mission red
+const TEXT_FG   = [231, 236, 243];
+const TEXT_DIM  = [138, 147, 166];
+
 function drawHeader(s) {
   const leftX = cards.length > 0 ? cards[0].x : PADDING * s;
 
   noStroke();
-  fill(231, 236, 243);
+
+  // Title: "Processing for" in white, "Artemis" in NASA red (nod to the program).
   textSize(44 * s);
   textStyle(BOLD);
-  text("Processing for Artemis", leftX, HEADER_TOP * s);
+  const titleLead = "Processing for ";
+  const titleAccent = "Artemis";
+  fill(...TEXT_FG);
+  text(titleLead, leftX, HEADER_TOP * s);
+  const titleLeadW = textWidth(titleLead);
+  fill(...NASA_RED);
+  text(titleAccent, leftX + titleLeadW, HEADER_TOP * s);
 
+  // Subhead: "The code is free to use and develop @ <repo>"
   textSize(16 * s);
   textStyle(NORMAL);
-  const linkY = (HEADER_TOP + 26) * s;
+  const linkLineY = (HEADER_TOP + 30) * s;
+  const lead = "The code is free to use and develop @ ";
+  const leadW = textWidth(lead);
   const linkW = textWidth(REPO_LABEL);
-  const padX = 6 * s;
+  const availableW = width - leftX - PADDING * s;
+  const oneLine = leadW + linkW + 8 * s <= availableW;
+
+  let linkX, linkY;
+  fill(...TEXT_DIM);
+  if (oneLine) {
+    text(lead, leftX, linkLineY);
+    linkX = leftX + leadW;
+    linkY = linkLineY;
+  } else {
+    text(lead, leftX, linkLineY);
+    linkX = leftX;
+    linkY = linkLineY + 22 * s;
+  }
+
+  const padX = 4 * s;
   const padY = 4 * s;
   repoLinkBounds = {
-    x: leftX - padX,
+    x: linkX - padX,
     y: linkY - 16 * s,
     w: linkW + padX * 2,
     h: 24 * s + padY,
   };
   const hovered = pointerInRepoLink(mouseX, mouseY);
-  fill(108, 184, 255, hovered ? 255 : 200);
-  text(REPO_LABEL, leftX, linkY);
+  textStyle(BOLD);
+  fill(NASA_BLUE[0], NASA_BLUE[1], NASA_BLUE[2], hovered ? 255 : 230);
+  text(REPO_LABEL, linkX, linkY);
+  textStyle(NORMAL);
   if (hovered) {
-    stroke(108, 184, 255, 200);
-    strokeWeight(1 * s);
-    line(leftX, linkY + 3 * s, leftX + linkW, linkY + 3 * s);
+    stroke(NASA_BLUE[0], NASA_BLUE[1], NASA_BLUE[2], 230);
+    strokeWeight(1.2 * s);
+    line(linkX, linkY + 3 * s, linkX + linkW, linkY + 3 * s);
     noStroke();
   }
 }
