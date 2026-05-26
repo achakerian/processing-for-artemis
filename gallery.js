@@ -287,7 +287,11 @@ const sketches = [
 // --- Layout constants (in design pixels; multiply by uiScale at use) ---
 const BASE_CARD_W = 280;
 const MAX_CARD_W = 520;
-const CARD_ASPECT = 1.6;         // width / height — higher = shorter cards (less empty space under text)
+// Card height is computed from the thumb (proportional to width) plus a
+// text band sized just for title + up to two lines of description. Fixed
+// aspect ratios leave way too much empty space on bigger screens.
+const THUMB_RATIO = 0.50;        // thumb height = cardW × this
+const TEXT_BAND = 96;            // design pixels for title + 2-line desc + padding
 const PADDING = 32;
 const GAP = 20;
 const HEADER_TOP = 76;
@@ -309,10 +313,120 @@ let touchDragDistance = 0;
 const TOUCH_DRAG_THRESHOLD = 10;
 const SCROLL_BOTTOM_PADDING = 32;
 
+// --- Animated background: drifting starfield + occasional comet events ---
+const BG_STAR_DENSITY = 1 / 3200;       // stars per pixel of viewport
+const BG_STAR_MIN = 220;
+const BG_STAR_MAX = 1500;
+const COMET_INTERVAL_MIN = 12;
+const COMET_INTERVAL_MAX = 28;
+const COMET_TRAIL_LEN = 55;
+let bgStars = [];
+let comets = [];
+let cometTimer = 4;                     // first comet ~4s after load
+let bgLastMs = 0;
+
+class BgStar {
+  constructor() { this.reset(true); }
+  reset(initial) {
+    this.x = random(-width, width);
+    this.y = random(-height, height);
+    this.z = initial ? random(width) : width;
+    this.speed = random(0.4, 1.8);
+  }
+}
+
+class Comet {
+  constructor() {
+    // Origin on a random edge; aim across the canvas
+    const edge = floor(random(4));
+    let x, y;
+    if (edge === 0)      { x = random(width);   y = -30; }
+    else if (edge === 1) { x = width + 30;       y = random(height); }
+    else if (edge === 2) { x = random(width);    y = height + 30; }
+    else                 { x = -30;              y = random(height); }
+    const tx = random(width);
+    const ty = random(height);
+    const angle = atan2(ty - y, tx - x);
+    const speed = random(280, 520);
+    this.vx = cos(angle) * speed;
+    this.vy = sin(angle) * speed;
+    this.trail = [{ x, y }];
+    this.alive = true;
+  }
+  update(dt) {
+    const head = this.trail[0];
+    const nx = head.x + this.vx * dt;
+    const ny = head.y + this.vy * dt;
+    this.trail.unshift({ x: nx, y: ny });
+    if (this.trail.length > COMET_TRAIL_LEN) this.trail.pop();
+    if (nx < -120 || nx > width + 120 || ny < -120 || ny > height + 120) {
+      this.alive = false;
+    }
+  }
+  draw(s) {
+    noFill();
+    for (let i = 1; i < this.trail.length; i++) {
+      const t = 1 - i / this.trail.length;
+      const a = this.trail[i - 1];
+      const b = this.trail[i];
+      stroke(200, 230, 255, t * 200);
+      strokeWeight(t * 2.2 * s);
+      line(a.x, a.y, b.x, b.y);
+    }
+    noStroke();
+    const h = this.trail[0];
+    fill(255, 250, 230, 90);
+    circle(h.x, h.y, 9 * s);
+    fill(255, 250, 230, 240);
+    circle(h.x, h.y, 3.6 * s);
+  }
+}
+
+function buildBgStars() {
+  bgStars = [];
+  const n = constrain(
+    floor(width * height * BG_STAR_DENSITY),
+    BG_STAR_MIN,
+    BG_STAR_MAX
+  );
+  for (let i = 0; i < n; i++) bgStars.push(new BgStar());
+}
+
+function drawBackground(dt, s) {
+  // Drifting starfield with subtle cursor parallax
+  const cx = (mouseX - width / 2) * 0.0008;
+  const cy = (mouseY - height / 2) * 0.0008;
+  noStroke();
+  for (const st of bgStars) {
+    st.z -= st.speed;
+    if (st.z < 1) st.reset(false);
+    const k = 128 / st.z;
+    const sx = (st.x + cx * st.z) * k + width / 2;
+    const sy = (st.y + cy * st.z) * k + height / 2;
+    if (sx < 0 || sx > width || sy < 0 || sy > height) continue;
+    const r = map(st.z, 0, width, 2.0, 0.3) * s;
+    const a = map(st.z, 0, width, 230, 50);
+    fill(231, 236, 243, a);
+    circle(sx, sy, r);
+  }
+
+  // Occasional comet event
+  cometTimer -= dt;
+  if (cometTimer <= 0) {
+    comets.push(new Comet());
+    cometTimer = random(COMET_INTERVAL_MIN, COMET_INTERVAL_MAX);
+  }
+  for (const c of comets) c.update(dt);
+  comets = comets.filter((c) => c.alive);
+  for (const c of comets) c.draw(s);
+}
+
 function setup() {
   createCanvas(windowWidth, windowHeight);
   textFont("system-ui, -apple-system, sans-serif");
   buildCards();
+  buildBgStars();
+  bgLastMs = millis();
 }
 
 function uiScale() {
@@ -335,12 +449,14 @@ function computeLayout() {
   if (cols >= 2) cardW = maxCardW;
   cardW = Math.max(BASE_CARD_W * 0.7 * s, cardW);
 
-  const cardH = cardW / CARD_ASPECT;
+  const thumbH = Math.floor(cardW * THUMB_RATIO);
+  const textH = Math.floor(TEXT_BAND * s);
+  const cardH = thumbH + textH;
   const gridW = cols * cardW + (cols - 1) * gap;
   const offsetX = Math.floor((width - gridW) / 2);
   const headerH = HEADER_GAP * s + 32 * s;
 
-  return { s, padding, gap, cardW, cardH, cols, offsetX, headerH };
+  return { s, padding, gap, cardW, cardH, thumbH, cols, offsetX, headerH };
 }
 
 function buildCards() {
@@ -351,18 +467,20 @@ function buildCards() {
     const row = Math.floor(i / layout.cols);
     const x = layout.offsetX + col * (layout.cardW + layout.gap);
     const y = layout.headerH + row * (layout.cardH + layout.gap);
-    cards.push(new Card(sketches[i], x, y, layout.cardW, layout.cardH));
+    cards.push(
+      new Card(sketches[i], x, y, layout.cardW, layout.cardH, layout.thumbH)
+    );
   }
 }
 
 class Card {
-  constructor(sketch, x, y, w, h) {
+  constructor(sketch, x, y, w, h, thumbH) {
     this.sketch = sketch;
     this.x = x;
     this.y = y;
     this.w = w;
     this.h = h;
-    this.thumbH = Math.floor(h * 0.62);
+    this.thumbH = thumbH;
     this.thumb = createGraphics(Math.floor(w), this.thumbH);
     this.thumb.randomSeed(sketch.seed);
     sketch.drawPreview(this.thumb, Math.floor(w), this.thumbH);
@@ -417,6 +535,13 @@ class Card {
 function draw() {
   background(5, 6, 10);
   const s = layout.s;
+
+  // Animated background — starfield + occasional comets, drawn in screen
+  // coords so they sit behind the (scrolling) cards.
+  const now = millis();
+  const dt = bgLastMs === 0 ? 0.016 : min((now - bgLastMs) / 1000, 0.05);
+  bgLastMs = now;
+  drawBackground(dt, s);
 
   // Compute scroll extent from last card's bottom edge.
   const lastBottom =
@@ -588,5 +713,6 @@ function touchEnded() {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   buildCards();
+  buildBgStars();
   scrollY = 0; // reset scroll after layout change so we don't leave the user mid-page
 }
