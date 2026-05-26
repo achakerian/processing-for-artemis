@@ -24,6 +24,62 @@ const sketches = [
       }
     },
   },
+  {
+    slug: "solar-wind",
+    title: "Solar Wind",
+    description: "Tap the sun. Tap a planet. Watch space weather happen.",
+    seed: 7,
+    drawPreview(g, w, h) {
+      g.background(5, 6, 10);
+      g.noStroke();
+      const cx = w / 2;
+      const cy = h / 2;
+      const k = w / 280;
+
+      // sun corona
+      for (let i = 4; i > 0; i--) {
+        g.fill(255, 180, 90, 22 / i);
+        g.circle(cx, cy, 18 * k * (1 + i * 0.35));
+      }
+      g.fill(255, 210, 90);
+      g.circle(cx, cy, 16 * k);
+      g.fill(255, 240, 200);
+      g.circle(cx, cy, 12 * k);
+
+      // orbit rings + planets (compressed log scale)
+      const radii = [22, 32, 44, 58, 80, 100, 122, 142];
+      const sizes = [2.2, 3.3, 3.4, 2.7, 7, 6, 4.5, 4.5];
+      const cols = [
+        [180, 175, 170], [220, 190, 130], [80, 140, 200], [200, 110, 80],
+        [220, 190, 150], [220, 200, 160], [170, 220, 230], [80, 110, 220],
+      ];
+
+      g.noFill();
+      g.stroke(120, 170, 220, 45);
+      g.strokeWeight(1);
+      for (let i = 0; i < radii.length; i++) {
+        g.circle(cx, cy, radii[i] * k * 2);
+      }
+
+      g.noStroke();
+      for (let i = 0; i < radii.length; i++) {
+        const r = radii[i] * k;
+        const sz = sizes[i] * k;
+        const angle = g.random(0, Math.PI * 2);
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        g.fill(cols[i][0], cols[i][1], cols[i][2]);
+        g.circle(px, py, sz);
+        if (i === 5) {
+          g.noFill();
+          g.stroke(220, 200, 160, 200);
+          g.strokeWeight(0.8);
+          g.ellipse(px, py, sz * 2.5, sz * 0.8);
+          g.noStroke();
+        }
+      }
+    },
+  },
 ];
 
 // --- Layout constants (in design pixels; multiply by uiScale at use) ---

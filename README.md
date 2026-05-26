@@ -24,6 +24,7 @@ When adding a sketch, route every magic number through `uiScale()` so the new sk
 | Sketch | Description |
 | --- | --- |
 | [`starfield`](sketches/starfield/) | Drifting stars that lean toward your cursor. |
+| [`solar-wind`](sketches/solar-wind/) | Tap the sun to fire a flare; tap a planet to zoom in. Earth's magnetosphere is fully simulated in Phase 1; other planets show a teaser stub. |
 
 ## How the pipeline works
 
