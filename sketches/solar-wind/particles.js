@@ -142,7 +142,6 @@ class ZoomParticle {
     const dx = this.x - this.earthX;
     const dy = this.y - this.earthY;
     const d = sqrt(dx * dx + dy * dy);
-    const fieldR = this.earthR * 6;
 
     if (d < this.earthR * 1.05) {
       this.energized = true;
@@ -150,7 +149,13 @@ class ZoomParticle {
       return;
     }
 
-    if (d < fieldR) {
+    // Boundary uses the Shue magnetopause shape — compressed on the
+    // sunward side (left in our view), stretched into a long teardrop
+    // tail on the nightside (right). θ measured from sun direction.
+    const theta = atan2(dy, -dx);
+    const boundR = shueBoundaryR(theta, this.earthR);
+
+    if (d < boundR) {
       const nx = dx / d;
       const ny = dy / d;
       const vDotN = this.vx * nx + this.vy * ny;
@@ -162,7 +167,7 @@ class ZoomParticle {
         }
         this.vx -= 2 * vDotN * nx;
         this.vy -= 2 * vDotN * ny;
-        const push = fieldR - d + 1;
+        const push = boundR - d + 1;
         this.x += nx * push;
         this.y += ny * push;
         return;

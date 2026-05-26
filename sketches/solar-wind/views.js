@@ -101,6 +101,7 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
     rect(0, 0, width * 0.08 * i, height);
   }
 
+  drawMagnetopause(earthX, earthY, earthR);
   drawDipoleField(earthX, earthY, earthR);
 
   // Spawn particles from the left edge, drifting right toward Earth.
@@ -138,28 +139,86 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
   pop();
 }
 
+// Asymmetric magnetosphere matching the textbook/Sci-Am magnetopause image:
+// dayside (sun-side, left in our view) compressed; nightside stretched into
+// a long teardrop magnetotail.
+//
+// Magnetopause uses the Shue model: r(θ) = r₀ · (2/(1+cos θ))^α
+//   θ measured from the sun-Earth line (θ=0 at the subsolar point).
+//   r₀ is the subsolar standoff distance.
+//   α controls how strongly the tail flares.
+// Inner dipole field lines are drawn as deformed loops: stretched on the
+// nightside, compressed on the dayside.
+
+const SHUE_R0 = 4.0;       // subsolar standoff in Earth radii (visually scaled)
+const SHUE_ALPHA = 0.58;
+const TAIL_CAP_R = 22;     // cap tail extent at this many Earth radii
+
+function shueBoundaryR(theta, R) {
+  const cosT = cos(theta);
+  if (cosT < -0.96) return R * TAIL_CAP_R;
+  return R * SHUE_R0 * pow(2 / (1 + cosT), SHUE_ALPHA);
+}
+
+function drawMagnetopause(earthX, earthY, R) {
+  noFill();
+  stroke(150, 210, 255, 110);
+  strokeWeight(2.2 * uiScale());
+  // Sun is at -x. θ from sun direction: θ=0 → particle on sunward side.
+  // Map to screen coords: x_screen = -r cos θ, y_screen = r sin θ.
+  beginShape();
+  for (let theta = -PI * 0.93; theta <= PI * 0.93; theta += 0.03) {
+    const r = shueBoundaryR(theta, R);
+    const x = -r * cos(theta);
+    const y = r * sin(theta);
+    vertex(earthX + x, earthY + y);
+  }
+  endShape();
+}
+
 function drawDipoleField(cx, cy, R) {
   noFill();
-  stroke(140, 210, 255, 70);
-  strokeWeight(1.1 * uiScale());
-  const equatorialRs = [1.25, 1.7, 2.4, 3.5, 5.0, 7.0];
+  stroke(140, 210, 255, 75);
+  strokeWeight(1.2 * uiScale());
+  const equatorialRs = [1.25, 1.7, 2.4, 3.3];
   for (const Req of equatorialRs) {
-    // right half
+    // Right half = nightside (stretched away from sun)
     beginShape();
-    for (let theta = 0.08; theta < PI - 0.08; theta += 0.05) {
-      const r = R * Req * sin(theta) * sin(theta);
-      const x = r * sin(theta);
-      const y = -r * cos(theta);
-      vertex(cx + x, cy + y);
+    for (let theta = 0.08; theta < PI - 0.08; theta += 0.04) {
+      const baseR = R * Req * sin(theta) * sin(theta);
+      let bx = baseR * sin(theta);
+      const by = -baseR * cos(theta);
+      // stretch grows with x distance from Earth (cubic-ish for visible tail)
+      const stretch = 1 + 0.55 * pow(bx / R, 1.4);
+      bx *= stretch;
+      vertex(cx + bx, cy + by);
     }
     endShape();
-    // left half
+    // Left half = dayside (compressed toward sun)
     beginShape();
-    for (let theta = 0.08; theta < PI - 0.08; theta += 0.05) {
-      const r = R * Req * sin(theta) * sin(theta);
-      const x = -r * sin(theta);
-      const y = -r * cos(theta);
-      vertex(cx + x, cy + y);
+    for (let theta = 0.08; theta < PI - 0.08; theta += 0.04) {
+      const baseR = R * Req * sin(theta) * sin(theta);
+      let bx = -baseR * sin(theta);
+      const by = -baseR * cos(theta);
+      const dist = -bx / R;
+      const compress = max(0.55, 1 - 0.35 * pow(dist, 0.9));
+      bx *= compress;
+      vertex(cx + bx, cy + by);
+    }
+    endShape();
+  }
+
+  // Pair of "open" field lines stretched into the magnetotail lobes —
+  // these mark the boundary between closed inner field and the tail.
+  stroke(150, 200, 240, 60);
+  strokeWeight(1 * uiScale());
+  for (const tailY of [-R * 1.6, R * 1.6]) {
+    beginShape();
+    vertex(cx, cy + tailY * 0.4);
+    for (let t = 0; t < 1; t += 0.05) {
+      const tx = R * (0.5 + t * 18);
+      const ty = tailY * (1 + t * 0.6);
+      vertex(cx + tx, cy + ty);
     }
     endShape();
   }
