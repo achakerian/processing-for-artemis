@@ -1,9 +1,10 @@
 // views.js — overview (whole solar system) and zoom (Earth or stub) renderers.
 //
 // Overview owns the sun, planets, orbit rings, and any in-flight flares.
-// Zoom is screen-coord-only: dipole field lines, particle stream from the
-// sun-side edge, aurora ribbons at the poles. Stub zoom is a labeled planet
-// view for planets whose full physics is deferred to Phase 2.
+// Zoom is screen-coord-only: dipole field lines plus a particle stream from
+// the sun-side edge. Particles bounce off or energise against the field;
+// no aurora. Stub zoom is a labeled planet view for planets whose full
+// behaviour is deferred to Phase 2.
 
 const overview = {
   sun: null,
@@ -17,7 +18,6 @@ const overview = {
 
 const zoom = {
   particles: [],
-  ribbons: [],
   spawnTimer: 0,
 };
 
@@ -43,7 +43,9 @@ function buildSystem() {
     const orbitR = innerR + t * (outerR - innerR);
     // Mercury fastest, Neptune slowest. Compressed Kepler.
     const angSpeed = 0.45 / pow(data.au, 0.55);
-    const visR = max(pow(data.realRadius, 0.4) * baseUnit, 4 * s);
+    // exponent 0.3 keeps gas giants visibly bigger than rocky planets
+    // without letting Jupiter and Saturn touch on a log-compressed grid
+    const visR = max(pow(data.realRadius, 0.3) * baseUnit, 4 * s);
     overview.planets[i].layout(orbitR, angSpeed, visR);
   }
 
@@ -88,7 +90,6 @@ function fireFlare() {
 
 function resetZoom() {
   zoom.particles = [];
-  zoom.ribbons = [];
   zoom.spawnTimer = 0;
 }
 
@@ -116,13 +117,6 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
   }
 
   for (const p of zoom.particles) p.update(dt);
-  for (const p of zoom.particles) {
-    if (p.triggeredAurora) {
-      const isNorth = p.y < earthY;
-      zoom.ribbons.push(new AuroraRibbon(p.x, p.y, isNorth));
-      p.triggeredAurora = false; // consume once
-    }
-  }
   zoom.particles = zoom.particles.filter((p) => p.alive && !p.isOffscreen());
 
   for (const p of zoom.particles) p.draw();
@@ -142,11 +136,6 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
   ellipse(earthR * 0.25, earthR * 0.2, earthR * 0.7, earthR * 0.55);
   ellipse(earthR * 0.55, -earthR * 0.4, earthR * 0.4, earthR * 0.3);
   pop();
-
-  // Aurora ribbons on top of everything.
-  for (const r of zoom.ribbons) r.update(dt);
-  for (const r of zoom.ribbons) r.draw();
-  zoom.ribbons = zoom.ribbons.filter((r) => !r.isDead());
 }
 
 function drawDipoleField(cx, cy, R) {

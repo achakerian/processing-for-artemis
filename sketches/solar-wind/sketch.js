@@ -114,6 +114,10 @@ function draw() {
     } else {
       drawStubZoom(zoomTarget);
     }
+  }
+
+  // Back hotspot: "← Gallery" in overview, "← Solar system" in zoom.
+  if (viewState === "overview" || viewState === "zoomed") {
     drawBackHotspot();
   }
 
@@ -143,19 +147,25 @@ function drawBackHotspot() {
   fill(231, 236, 243, hovered ? 240 : 190);
   noStroke();
   textSize(16 * s);
-  text("← Solar system", backHotspot.x + 8 * s, backHotspot.y + 28 * s);
+  const label = viewState === "overview" ? "← Gallery" : "← Solar system";
+  text(label, backHotspot.x + 8 * s, backHotspot.y + 28 * s);
 }
 
 function handleTap(px, py) {
   if (viewState === "zoomingIn" || viewState === "zoomingOut") return;
 
-  if (viewState === "zoomed") {
-    if (pointInRect(px, py, backHotspot)) {
+  // Back hotspot first — same rect, different action per view state.
+  if (pointInRect(px, py, backHotspot)) {
+    if (viewState === "overview") {
+      window.location.href = "../../";
+    } else if (viewState === "zoomed") {
       viewState = "zoomingOut";
       transitionT = 0;
     }
     return;
   }
+
+  if (viewState === "zoomed") return;
 
   // overview: dim the hint after first tap
   sunHint.fade = max(0, sunHint.fade - 0.5);
