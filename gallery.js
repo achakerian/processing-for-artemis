@@ -287,7 +287,7 @@ const sketches = [
 // --- Layout constants (in design pixels; multiply by uiScale at use) ---
 const BASE_CARD_W = 280;
 const MAX_CARD_W = 520;
-const CARD_ASPECT = 7 / 6;       // height / width
+const CARD_ASPECT = 1.6;         // width / height — higher = shorter cards (less empty space under text)
 const PADDING = 32;
 const GAP = 20;
 const HEADER_TOP = 76;
@@ -299,6 +299,15 @@ const REPO_LABEL = "github.com/achakerian/processing-for-artemis";
 let cards = [];
 let layout = null;
 let repoLinkBounds = null;
+
+// --- Scrolling ---
+let scrollY = 0;
+let maxScroll = 0;
+let touchAnchorY = null;
+let touchAnchorScrollY = 0;
+let touchDragDistance = 0;
+const TOUCH_DRAG_THRESHOLD = 10;
+const SCROLL_BOTTOM_PADDING = 32;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -409,15 +418,47 @@ function draw() {
   background(5, 6, 10);
   const s = layout.s;
 
+  // Compute scroll extent from last card's bottom edge.
+  const lastBottom =
+    cards.length > 0
+      ? cards[cards.length - 1].y + cards[cards.length - 1].h
+      : layout.headerH;
+  maxScroll = max(0, lastBottom + SCROLL_BOTTOM_PADDING * s - height);
+  scrollY = constrain(scrollY, 0, maxScroll);
+
+  // World pointer Y for hit detection inside the scrolled region.
+  const worldMouseY = mouseY + scrollY;
+
+  push();
+  translate(0, -scrollY);
   drawHeader(s);
 
   let anyHover = false;
   for (const c of cards) {
-    c.hovered = c.contains(mouseX, mouseY);
+    c.hovered = c.contains(mouseX, worldMouseY);
     if (c.hovered) anyHover = true;
     c.draw(s);
   }
-  cursor(anyHover || pointerInRepoLink(mouseX, mouseY) ? "pointer" : "default");
+  pop();
+
+  if (maxScroll > 0) drawScrollIndicator(s);
+
+  cursor(anyHover || pointerInRepoLink(mouseX, worldMouseY) ? "pointer" : "default");
+}
+
+function drawScrollIndicator(s) {
+  const w = 4 * s;
+  const trackH = height - 24 * s;
+  const trackX = width - 10 * s;
+  const trackY = 12 * s;
+  noStroke();
+  fill(231, 236, 243, 28);
+  rect(trackX, trackY, w, trackH, w / 2);
+  const totalContent = height + maxScroll;
+  const thumbH = max(30 * s, (height / totalContent) * trackH);
+  const thumbY = trackY + (scrollY / maxScroll) * (trackH - thumbH);
+  fill(231, 236, 243, 110);
+  rect(trackX, thumbY, w, thumbH, w / 2);
 }
 
 // NASA-inspired palette
@@ -472,7 +513,7 @@ function drawHeader(s) {
     w: linkW + padX * 2,
     h: 24 * s + padY,
   };
-  const hovered = pointerInRepoLink(mouseX, mouseY);
+  const hovered = pointerInRepoLink(mouseX, mouseY + scrollY);
   textStyle(BOLD);
   fill(NASA_BLUE[0], NASA_BLUE[1], NASA_BLUE[2], hovered ? 255 : 230);
   text(REPO_LABEL, linkX, linkY);
@@ -506,19 +547,46 @@ function navigateFromPointer(px, py) {
 }
 
 function mousePressed() {
-  navigateFromPointer(mouseX, mouseY);
+  navigateFromPointer(mouseX, mouseY + scrollY);
 }
 
+function mouseWheel(event) {
+  if (maxScroll <= 0) return;
+  scrollY = constrain(scrollY + event.delta, 0, maxScroll);
+  return false; // prevent the browser from scrolling the page
+}
+
+// Touch is unified across drag-to-scroll and tap-to-navigate: if the finger
+// moves more than TOUCH_DRAG_THRESHOLD before lifting, it's a scroll;
+// otherwise it's a tap.
 function touchStarted() {
   if (touches && touches.length > 0) {
-    navigateFromPointer(touches[0].x, touches[0].y);
-  } else {
-    navigateFromPointer(mouseX, mouseY);
+    touchAnchorY = touches[0].y;
+    touchAnchorScrollY = scrollY;
+    touchDragDistance = 0;
   }
-  return false; // prevent default scroll/zoom on touch
+  return false;
+}
+
+function touchMoved() {
+  if (touches && touches.length > 0 && touchAnchorY !== null) {
+    const dy = touchAnchorY - touches[0].y;
+    touchDragDistance = max(touchDragDistance, abs(dy));
+    scrollY = constrain(touchAnchorScrollY + dy, 0, maxScroll);
+  }
+  return false;
+}
+
+function touchEnded() {
+  if (touchAnchorY !== null && touchDragDistance < TOUCH_DRAG_THRESHOLD) {
+    navigateFromPointer(mouseX, mouseY + scrollY);
+  }
+  touchAnchorY = null;
+  return false;
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   buildCards();
+  scrollY = 0; // reset scroll after layout change so we don't leave the user mid-page
 }
