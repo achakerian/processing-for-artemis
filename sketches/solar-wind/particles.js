@@ -127,16 +127,18 @@ class ZoomParticle {
     this.energized = false;
     this.energizeLife = 1.0;
   }
+  // Returns true if the particle interacted with the field this frame
+  // (so the caller can accumulate bombardment pressure on the magnetopause).
   update(dt) {
     if (this.energized) {
       this.energizeLife -= dt * ENERGIZE_FADE;
       if (this.energizeLife <= 0) {
         this.alive = false;
-        return;
+        return false;
       }
       this.x += this.vx * dt;
       this.y += this.vy * dt;
-      return;
+      return false;
     }
 
     const dx = this.x - this.earthX;
@@ -146,7 +148,7 @@ class ZoomParticle {
     if (d < this.earthR * 1.05) {
       this.energized = true;
       this.energizeLife = 1.0;
-      return;
+      return true;
     }
 
     // Boundary uses the Shue magnetopause shape — compressed on the
@@ -163,19 +165,20 @@ class ZoomParticle {
         if (random() < ENERGIZE_PROB) {
           this.energized = true;
           this.energizeLife = 1.0;
-          return;
+          return true;
         }
         this.vx -= 2 * vDotN * nx;
         this.vy -= 2 * vDotN * ny;
         const push = boundR - d + 1;
         this.x += nx * push;
         this.y += ny * push;
-        return;
+        return true;
       }
     }
 
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    return false;
   }
   draw() {
     noStroke();

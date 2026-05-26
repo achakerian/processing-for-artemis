@@ -131,6 +131,102 @@ const sketches = [
     },
   },
   {
+    slug: "asteroid-impact",
+    title: "Asteroid Impact Probability",
+    description: "Fling an asteroid through a log-scaled solar system. Track its odds of hitting Earth in 50 cycles.",
+    seed: 23,
+    drawPreview(g, w, h) {
+      g.background(5, 6, 10);
+      g.noStroke();
+      const cx = w / 2;
+      const cy = h / 2;
+      const k = w / 280;
+
+      // sun
+      for (let i = 4; i > 0; i--) {
+        g.fill(255, 180, 90, 22 / i);
+        g.circle(cx, cy, 14 * k * (1 + i * 0.35));
+      }
+      g.fill(255, 210, 90);
+      g.circle(cx, cy, 12 * k);
+      g.fill(255, 240, 200);
+      g.circle(cx, cy, 9 * k);
+
+      // log-spaced orbits + planets
+      const radii = [20, 30, 42, 54, 76, 94, 114, 132];
+      const sizes = [2.0, 3.0, 3.2, 2.5, 6.4, 5.6, 4.2, 4.2];
+      const cols = [
+        [180, 175, 170], [220, 190, 130], [80, 140, 200], [200, 110, 80],
+        [220, 190, 150], [220, 200, 160], [170, 220, 230], [80, 110, 220],
+      ];
+      g.noFill();
+      g.stroke(120, 170, 220, 35);
+      g.strokeWeight(1);
+      for (let i = 0; i < radii.length; i++) {
+        g.circle(cx, cy, radii[i] * k * 2);
+      }
+      g.noStroke();
+      const angles = [];
+      for (let i = 0; i < radii.length; i++) {
+        const a = g.random(0, Math.PI * 2);
+        angles.push(a);
+        const r = radii[i] * k;
+        const sz = sizes[i] * k;
+        const px = cx + Math.cos(a) * r;
+        const py = cy + Math.sin(a) * r;
+        g.fill(cols[i][0], cols[i][1], cols[i][2]);
+        g.circle(px, py, sz);
+      }
+
+      // Halley-like comet path (faint tilted ellipse)
+      g.noFill();
+      g.stroke(200, 150, 220, 55);
+      g.strokeWeight(1);
+      g.push();
+      g.translate(cx, cy);
+      g.rotate(-0.4);
+      const cometA = 75 * k;
+      const cometB = 30 * k;
+      g.ellipse(-cometA * 0.45, 0, cometA * 2, cometB * 2);
+      g.pop();
+
+      // asteroid curving in toward Earth (3rd orbit)
+      const earthR = radii[2] * k;
+      const earthAngle = angles[2];
+      const ex = cx + Math.cos(earthAngle) * earthR;
+      const ey = cy + Math.sin(earthAngle) * earthR;
+      const startX = w - 18 * k;
+      const startY = 18 * k;
+      const ctrl1X = cx + 90 * k;
+      const ctrl1Y = cy - 30 * k;
+      const ctrl2X = ex + 50 * k;
+      const ctrl2Y = ey - 28 * k;
+
+      // glow trail
+      for (let i = 6; i > 0; i--) {
+        g.stroke(255, 170, 110, 12 * i);
+        g.strokeWeight(0.5 * k * i);
+        g.noFill();
+        g.bezier(startX, startY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, ex, ey);
+      }
+      g.stroke(255, 220, 170, 220);
+      g.strokeWeight(1.4 * k);
+      g.noFill();
+      g.bezier(startX, startY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, ex, ey);
+
+      // asteroid head
+      g.noStroke();
+      g.fill(255, 220, 180);
+      g.circle(startX, startY, 3 * k);
+
+      // impact halo on Earth
+      g.noFill();
+      g.stroke(120, 220, 160, 220);
+      g.strokeWeight(1.2 * k);
+      g.circle(ex, ey, sizes[2] * k * 2.6);
+    },
+  },
+  {
     slug: "solar-wind",
     title: "Solar Wind",
     description: "Tap the sun. Tap a planet. Watch space weather happen.",

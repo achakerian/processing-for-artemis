@@ -19,7 +19,11 @@ const overview = {
 const zoom = {
   particles: [],
   spawnTimer: 0,
+  burstTimer: 6,
+  bombardment: 0,     // 0..1, recent particle-hit pressure on the field
+  compression: 1,     // 1 = nominal, < 1 = field shrunk toward Earth
 };
+const COMPRESSION_MAX = 0.45;   // bombardment=1 → r0 shrinks to (1-0.45)·R0
 
 function buildSystem() {
   overview.sunX = width / 2;
@@ -91,9 +95,16 @@ function fireFlare() {
 function resetZoom() {
   zoom.particles = [];
   zoom.spawnTimer = 0;
+  zoom.burstTimer = 6;
+  zoom.bombardment = 0;
+  zoom.compression = 1;
 }
 
 function drawEarthZoom(dt, earthX, earthY, earthR) {
+  // Bombardment decays each frame; compression follows it directly.
+  zoom.bombardment = max(0, zoom.bombardment - dt * 0.9);
+  zoom.compression = 1 - COMPRESSION_MAX * zoom.bombardment;
+
   // Sun glow on the left edge (stylized: sun is always "to the left" in zoom).
   noStroke();
   for (let i = 6; i > 0; i--) {
@@ -104,8 +115,8 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
   drawMagnetopause(earthX, earthY, earthR);
   drawDipoleField(earthX, earthY, earthR);
 
-  // Spawn particles from the left edge, drifting right toward Earth.
-  const spawnInterval = 0.018 / max(1, uiScale() * 0.7);
+  // Ambient spawn from the left edge.
+  const spawnInterval = 0.022 / max(1, uiScale() * 0.7);
   const driftSpeed = max(180, min(width, height) * 0.25);
   zoom.spawnTimer -= dt;
   while (zoom.spawnTimer < 0) {
@@ -117,7 +128,28 @@ function drawEarthZoom(dt, earthX, earthY, earthR) {
     zoom.spawnTimer += spawnInterval;
   }
 
-  for (const p of zoom.particles) p.update(dt);
+  // Periodic CME burst — a dense, fast cloud that compresses the field on impact.
+  zoom.burstTimer -= dt;
+  if (zoom.burstTimer <= 0) {
+    const burstN = floor(constrain(60 + min(width, height) * 0.04, 60, 180));
+    for (let i = 0; i < burstN; i++) {
+      const y = constrain(earthY + randomGaussian() * height * 0.18, 0, height);
+      zoom.particles.push(new ZoomParticle(
+        -10, y,
+        driftSpeed * random(1.4, 1.8),
+        random(-driftSpeed * 0.08, driftSpeed * 0.08),
+        earthX, earthY, earthR
+      ));
+    }
+    zoom.burstTimer = random(7, 14);
+  }
+
+  // Update particles; each interaction with the field adds to bombardment.
+  let hits = 0;
+  for (const p of zoom.particles) {
+    if (p.update(dt)) hits++;
+  }
+  if (hits > 0) zoom.bombardment = min(1, zoom.bombardment + 0.012 * hits);
   zoom.particles = zoom.particles.filter((p) => p.alive && !p.isOffscreen());
 
   for (const p of zoom.particles) p.draw();
@@ -156,14 +188,18 @@ const TAIL_CAP_R = 22;     // cap tail extent at this many Earth radii
 
 function shueBoundaryR(theta, R) {
   const cosT = cos(theta);
-  if (cosT < -0.96) return R * TAIL_CAP_R;
-  return R * SHUE_R0 * pow(2 / (1 + cosT), SHUE_ALPHA);
+  const c = zoom.compression;
+  if (cosT < -0.96) return R * TAIL_CAP_R * c;
+  return R * SHUE_R0 * c * pow(2 / (1 + cosT), SHUE_ALPHA);
 }
 
 function drawMagnetopause(earthX, earthY, R) {
   noFill();
-  stroke(150, 210, 255, 110);
-  strokeWeight(2.2 * uiScale());
+  // Glow brighter and thicker when the field is being bombarded.
+  const baseAlpha = 110;
+  const pulse = 90 * zoom.bombardment;
+  stroke(150, 210, 255, baseAlpha + pulse);
+  strokeWeight((2.2 + zoom.bombardment * 1.5) * uiScale());
   // Sun is at -x. θ from sun direction: θ=0 → particle on sunward side.
   // Map to screen coords: x_screen = -r cos θ, y_screen = r sin θ.
   beginShape();
@@ -194,7 +230,7 @@ function drawDipoleField(cx, cy, R) {
       vertex(cx + bx, cy + by);
     }
     endShape();
-    // Left half = dayside (compressed toward sun)
+    // Left half = dayside (compressed toward sun; shrinks further under bombardment)
     beginShape();
     for (let theta = 0.08; theta < PI - 0.08; theta += 0.04) {
       const baseR = R * Req * sin(theta) * sin(theta);
@@ -202,7 +238,7 @@ function drawDipoleField(cx, cy, R) {
       const by = -baseR * cos(theta);
       const dist = -bx / R;
       const compress = max(0.55, 1 - 0.35 * pow(dist, 0.9));
-      bx *= compress;
+      bx *= compress * zoom.compression;
       vertex(cx + bx, cy + by);
     }
     endShape();

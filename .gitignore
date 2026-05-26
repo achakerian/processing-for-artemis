@@ -13,6 +13,9 @@
 *.swp
 *.swo
 
+# Browser automation snapshots (Playwright MCP cache)
+.playwright-mcp/
+
 # Logs / local servers
 *.log
 .cache/

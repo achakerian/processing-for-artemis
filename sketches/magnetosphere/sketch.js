@@ -184,17 +184,24 @@ function drawEarth(cx, cy, r) {
 // In our layout the sun is to the LEFT of Earth, so:
 //   particle dx < 0  → sun-facing side  → magnetopause is COMPRESSED here
 //   particle dx > 0  → night side       → magnetotail STRETCHES here
+// Magnetopause shrinks under bombardment, dayside more than the tail —
+// matching the actual response of Earth's magnetosphere to a CME impact.
+// bowShockPressure (0..1) drives both the geometric compression here and
+// the bright pulse in drawMagnetopause.
 function magnetopauseRadius(ang) {
   const c = cos(ang);            // -1 at sun side, +1 at tail
   const t = (c + 1) / 2;         // 0 sun side, 1 tail
-  const sun_side = 2.6 * earthR;
-  const tail = 5.5 * earthR;
+  const bs = bowShockPressure;
+  const sun_side = 2.6 * earthR * (1 - 0.55 * bs);   // strong dayside crush
+  const tail = 5.5 * earthR * (1 - 0.10 * bs);       // tail mostly holds
   return lerp(sun_side, tail, t);
 }
 
-// Asymmetry multiplier for drawn field lines.
+// Asymmetry multiplier for drawn field lines. The sun-facing side also
+// shrinks under bombardment so field lines visibly compress with the
+// magnetopause they live inside of.
 function asymmetryFactor(dxR) {
-  if (dxR < 0) return 0.7;
+  if (dxR < 0) return 0.7 * (1 - 0.5 * bowShockPressure);
   return 1 + 1.1 * (1 - exp(-dxR / 2.8));
 }
 
